@@ -27,7 +27,7 @@ import os
 import logging
 import unittest
 from decimal import Decimal
-from service.models import Product, Category, db
+from service.models import Product, Category, db, DataValidationError
 from service import app
 from tests.factories import ProductFactory
 
@@ -132,6 +132,9 @@ class TestProductModel(unittest.TestCase):
         self.assertEqual(len(products), 1)
         self.assertEqual(products[0].id, original_id)
         self.assertEqual(products[0].description, "testing")
+        product = ProductFactory()
+        product.id = None
+        self.assertRaises(DataValidationError, product.update)
 
     def test_delete_a_product(self):
         """It should Delete a Product"""
@@ -193,3 +196,30 @@ class TestProductModel(unittest.TestCase):
         self.assertEqual(products_found.count(), count)
         for product_found in products_found:
             self.assertEqual(product_found.category, category)
+
+    def test_find_by_price(self):
+        """It should Find  Products by Price"""
+        # Create 10 Products
+        products = ProductFactory.create_batch(10)
+        for product in products:
+            product.create()
+        price = products[0].price
+        count = len([product for product in products if product.price == price])
+        products_found = Product.find_by_price(price)
+        self.assertEqual(products_found.count(), count)
+        for product_found in products_found:
+            self.assertEqual(product_found.price, price)
+        products_found = Product.find_by_price(str(price))
+        self.assertEqual(products_found.count(), count)
+
+    def test_deserialize(self):
+        '''It should serialize and deserialize the product'''
+        product = ProductFactory()
+        _dict = product.serialize()
+        self.assertIsInstance(_dict, dict)
+        dict_bad_availability = _dict.copy()
+        dict_bad_availability['available'] = 'Si'
+        self.assertRaises(DataValidationError, product.deserialize, dict_bad_availability)
+        dict_bad_category = _dict.copy()
+        dict_bad_category['category'] = 'No se'
+        self.assertRaises(DataValidationError, product.deserialize, dict_bad_category)
